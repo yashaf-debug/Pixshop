@@ -21,58 +21,49 @@ const StartScreen: React.FC<StartScreenProps> = ({ onFileSelect }) => {
 
   return (
     <div 
-      className={`w-full max-w-5xl mx-auto text-center p-8 transition-all duration-300 rounded-2xl border-2 ${isDraggingOver ? 'bg-blue-500/10 border-dashed border-blue-400' : 'border-transparent'}`}
-      onDragOver={(e) => { e.preventDefault(); setIsDraggingOver(true); }}
-      onDragLeave={() => setIsDraggingOver(false)}
+      className={`w-full max-w-5xl mx-auto text-center p-8 transition-all duration-300 rounded-2xl ${isDraggingOver ? 'bg-blue-500/20 ring-4 ring-blue-500/50' : 'bg-gray-800/30'}`}
+      onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingOver(true); }}
+      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingOver(true); }}
+      onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingOver(false); }}
       onDrop={(e) => {
         e.preventDefault();
+        e.stopPropagation();
         setIsDraggingOver(false);
         onFileSelect(e.dataTransfer.files);
       }}
     >
-      <div className="flex flex-col items-center gap-6 animate-fade-in">
-        <h1 className="text-5xl font-extrabold tracking-tight text-gray-100 sm:text-6xl md:text-7xl">
-          {t('startScreen.title1')}<span className="text-blue-400">{t('startScreen.title2')}</span>.
+      <div className="animate-fade-in">
+        <h1 className="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-br from-white to-gray-300 tracking-tight mb-4">
+          {t('startScreen.title1')}
+          <span className="text-cyan-400">{t('startScreen.title2')}</span>
         </h1>
-        <p className="max-w-2xl text-lg text-gray-400 md:text-xl">
-          {t('startScreen.subtitle')}
-        </p>
-
-        <div className="mt-6 flex flex-col items-center gap-4">
-            <label htmlFor="image-upload-start" className="relative inline-flex items-center justify-center px-10 py-5 text-xl font-bold text-white bg-blue-600 rounded-full cursor-pointer group hover:bg-blue-500 transition-colors">
-                <UploadIcon className="w-6 h-6 mr-3 transition-transform duration-500 ease-in-out group-hover:rotate-[360deg] group-hover:scale-110" />
-                {t('startScreen.uploadButton')}
-            </label>
-            <input id="image-upload-start" type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
-            <p className="text-sm text-gray-500">{t('startScreen.dragDrop')}</p>
+        <p className="max-w-3xl mx-auto text-lg text-gray-400 mb-8">{t('startScreen.subtitle')}</p>
+        
+        <div className="flex flex-col items-center gap-4">
+          <label htmlFor="file-upload" className="cursor-pointer bg-gradient-to-br from-blue-600 to-blue-500 text-white font-bold py-4 px-8 rounded-lg transition-all duration-300 ease-in-out shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/40 hover:-translate-y-px active:scale-95 active:shadow-inner text-lg">
+            {t('startScreen.uploadButton')}
+          </label>
+          <input id="file-upload" type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
+          <p className="text-gray-500">{t('startScreen.dragDrop')}</p>
         </div>
-
-        <div className="mt-16 w-full">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <div className="bg-black/20 p-6 rounded-lg border border-gray-700/50 flex flex-col items-center text-center">
-                    <div className="flex items-center justify-center w-12 h-12 bg-gray-700 rounded-full mb-4">
-                       <MagicWandIcon className="w-6 h-6 text-blue-400" />
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-100">{t('startScreen.feature1Title')}</h3>
-                    <p className="mt-2 text-gray-400">{t('startScreen.feature1Desc')}</p>
-                </div>
-                <div className="bg-black/20 p-6 rounded-lg border border-gray-700/50 flex flex-col items-center text-center">
-                    <div className="flex items-center justify-center w-12 h-12 bg-gray-700 rounded-full mb-4">
-                       <PaletteIcon className="w-6 h-6 text-blue-400" />
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-100">{t('startScreen.feature2Title')}</h3>
-                    <p className="mt-2 text-gray-400">{t('startScreen.feature2Desc')}</p>
-                </div>
-                <div className="bg-black/20 p-6 rounded-lg border border-gray-700/50 flex flex-col items-center text-center">
-                    <div className="flex items-center justify-center w-12 h-12 bg-gray-700 rounded-full mb-4">
-                       <SunIcon className="w-6 h-6 text-blue-400" />
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-100">{t('startScreen.feature3Title')}</h3>
-                    <p className="mt-2 text-gray-400">{t('startScreen.feature3Desc')}</p>
-                </div>
-            </div>
+        
+        <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
+          <div className="bg-white/5 p-6 rounded-lg border border-white/10">
+            <MagicWandIcon className="w-8 h-8 text-blue-400 mb-4" />
+            <h3 className="text-xl font-bold text-gray-200 mb-2">{t('startScreen.feature1Title')}</h3>
+            <p className="text-gray-400">{t('startScreen.feature1Desc')}</p>
+          </div>
+          <div className="bg-white/5 p-6 rounded-lg border border-white/10">
+            <PaletteIcon className="w-8 h-8 text-cyan-400 mb-4" />
+            <h3 className="text-xl font-bold text-gray-200 mb-2">{t('startScreen.feature2Title')}</h3>
+            <p className="text-gray-400">{t('startScreen.feature2Desc')}</p>
+          </div>
+          <div className="bg-white/5 p-6 rounded-lg border border-white/10">
+            <SunIcon className="w-8 h-8 text-yellow-400 mb-4" />
+            <h3 className="text-xl font-bold text-gray-200 mb-2">{t('startScreen.feature3Title')}</h3>
+            <p className="text-gray-400">{t('startScreen.feature3Desc')}</p>
+          </div>
         </div>
-
       </div>
     </div>
   );

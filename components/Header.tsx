@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 import React from 'react';
-import { GalleryIcon } from './icons';
+import { GalleryIcon, BatchIcon, UndoIcon } from './icons';
 import { useLanguage } from '../contexts/LanguageContext';
 
 const SparkleIcon: React.FC<{ className?: string }> = ({ className }) => (
@@ -14,9 +14,11 @@ const SparkleIcon: React.FC<{ className?: string }> = ({ className }) => (
 
 interface HeaderProps {
     onOpenGallery: () => void;
+    viewMode: 'editor' | 'batch';
+    onSwitchView: (mode: 'editor' | 'batch') => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ onOpenGallery }) => {
+const Header: React.FC<HeaderProps> = ({ onOpenGallery, viewMode, onSwitchView }) => {
   const { t, language, setLanguage } = useLanguage();
 
   return (
@@ -43,14 +45,34 @@ const Header: React.FC<HeaderProps> = ({ onOpenGallery }) => {
                       RU
                   </button>
               </div>
-              <button 
-                onClick={onOpenGallery}
-                className="flex items-center gap-2 text-gray-300 hover:text-white hover:bg-white/10 transition-colors px-4 py-2 rounded-lg"
-                aria-label={t('header.openGalleryAria')}
-              >
-                <GalleryIcon className="w-5 h-5" />
-                <span className="hidden sm:inline font-medium">{t('header.gallery')}</span>
-              </button>
+
+              {viewMode === 'editor' ? (
+                <>
+                    <button 
+                        onClick={() => onSwitchView('batch')}
+                        className="flex items-center gap-2 text-gray-300 hover:text-white hover:bg-white/10 transition-colors px-4 py-2 rounded-lg"
+                    >
+                        <BatchIcon className="w-5 h-5" />
+                        <span className="hidden sm:inline font-medium">{t('header.batchEdit')}</span>
+                    </button>
+                    <button 
+                        onClick={onOpenGallery}
+                        className="flex items-center gap-2 text-gray-300 hover:text-white hover:bg-white/10 transition-colors px-4 py-2 rounded-lg"
+                        aria-label={t('header.openGalleryAria')}
+                    >
+                        <GalleryIcon className="w-5 h-5" />
+                        <span className="hidden sm:inline font-medium">{t('header.gallery')}</span>
+                    </button>
+                </>
+              ) : (
+                <button 
+                    onClick={() => onSwitchView('editor')}
+                    className="flex items-center gap-2 text-gray-300 hover:text-white hover:bg-white/10 transition-colors px-4 py-2 rounded-lg"
+                >
+                    <UndoIcon className="w-5 h-5" />
+                    <span className="hidden sm:inline font-medium">{t('header.backToEditor')}</span>
+                </button>
+              )}
           </div>
       </div>
     </header>

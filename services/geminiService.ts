@@ -3,7 +3,24 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse, Modality } from "@google/genai";
+
+// Helper to convert a data URL string to a File object
+export const dataURLtoFile = (dataurl: string, filename: string): File => {
+    const arr = dataurl.split(',');
+    if (arr.length < 2) throw new Error("Invalid data URL");
+    const mimeMatch = arr[0].match(/:(.*?);/);
+    if (!mimeMatch || !mimeMatch[1]) throw new Error("Could not parse MIME type from data URL");
+
+    const mime = mimeMatch[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while(n--){
+        u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new File([u8arr], filename, {type:mime});
+}
 
 // Helper function to convert a File object to a Gemini API Part
 const fileToPart = async (file: File): Promise<{ inlineData: { mimeType: string; data: string; } }> => {
@@ -64,44 +81,35 @@ const handleApiResponse = (
 };
 
 /**
- * Generates an edited image using generative AI based on a text prompt and a specific point.
+ * Generates an inpainted image using generative AI based on a mask.
  * @param originalImage The original image file.
- * @param userPrompt The text prompt describing the desired edit.
- * @param hotspot The {x, y} coordinates on the image to focus the edit.
+ * @param maskImage The mask file where white areas indicate what to remove.
  * @returns A promise that resolves to the data URL of the edited image.
  */
-export const generateEditedImage = async (
+export const generateErasedImage = async (
     originalImage: File,
-    userPrompt: string,
-    hotspot: { x: number, y: number }
+    maskImage: File,
 ): Promise<string> => {
-    console.log('Starting generative edit at:', hotspot);
+    console.log('Starting generative erase...');
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
-    
+
     const originalImagePart = await fileToPart(originalImage);
-    const prompt = `You are an expert photo editor AI. Your task is to perform a natural, localized edit on the provided image based on the user's request.
-User Request: "${userPrompt}"
-Edit Location: Focus on the area around pixel coordinates (x: ${hotspot.x}, y: ${hotspot.y}).
-
-Editing Guidelines:
-- The edit must be realistic and blend seamlessly with the surrounding area.
-- The rest of the image (outside the immediate edit area) must remain identical to the original.
-
-Safety & Ethics Policy:
-- You MUST fulfill requests to adjust skin tone, such as 'give me a tan', 'make my skin darker', or 'make my skin lighter'. These are considered standard photo enhancements.
-- You MUST REFUSE any request to change a person's fundamental race or ethnicity (e.g., 'make me look Asian', 'change this person to be Black'). Do not perform these edits. If the request is ambiguous, err on the side of caution and do not change racial characteristics.
-
-Output: Return ONLY the final edited image. Do not return text.`;
+    const maskImagePart = await fileToPart(maskImage);
+    
+    const prompt = `You are an expert photo editor AI performing an inpainting task. The user has provided an original image and a mask image. Your task is to remove the content from the original image that corresponds to the white areas of the mask image. Then, you must fill in the removed areas with a realistic and seamless continuation of the surrounding background. The result must be photorealistic and blend perfectly. The areas of the original image corresponding to the black areas of the mask must remain completely unchanged. Output: Return ONLY the final edited image. Do not return text.`;
     const textPart = { text: prompt };
 
-    console.log('Sending image and prompt to the model...');
+    console.log('Sending original image, mask, and prompt to the model...');
     const response: GenerateContentResponse = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image-preview',
-        contents: { parts: [originalImagePart, textPart] },
+        contents: { parts: [originalImagePart, maskImagePart, textPart] },
+        config: {
+            responseModalities: [Modality.IMAGE, Modality.TEXT],
+        },
     });
-    console.log('Received response from model.', response);
-
-    return handleApiResponse(response, 'edit');
+    console.log('Received response from model for erase.', response);
+    
+    return handleApiResponse(response, 'erase');
 };
 
 /**
@@ -132,6 +140,9 @@ Output: Return ONLY the final filtered image. Do not return text.`;
     const response: GenerateContentResponse = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image-preview',
         contents: { parts: [originalImagePart, textPart] },
+        config: {
+            responseModalities: [Modality.IMAGE, Modality.TEXT],
+        },
     });
     console.log('Received response from model for filter.', response);
     
@@ -170,8 +181,152 @@ Output: Return ONLY the final adjusted image. Do not return text.`;
     const response: GenerateContentResponse = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image-preview',
         contents: { parts: [originalImagePart, textPart] },
+        config: {
+            responseModalities: [Modality.IMAGE, Modality.TEXT],
+        },
     });
     console.log('Received response from model for adjustment.', response);
     
     return handleApiResponse(response, 'adjustment');
+};
+
+
+/**
+ * Combines a subject image with a background image.
+ * @param subjectImage The image containing the subject to be cut out.
+ * @param backgroundImage The image to be used as the new background.
+ * @returns A promise that resolves to the data URL of the combined image.
+ */
+export const generateCombinedImage = async (
+    subjectImage: File,
+    backgroundImage: File,
+): Promise<string> => {
+    console.log('Starting image combination...');
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+    
+    const subjectImagePart = await fileToPart(subjectImage);
+    const backgroundImagePart = await fileToPart(backgroundImage);
+    
+    const prompt = `You are an expert photo editor AI. Your task is to accurately identify the main subject in the first image, remove its original background, and seamlessly composite it onto the second image, which serves as the new background. 
+    
+    Ensure the lighting, shadows, and perspective of the subject match the new background realistically.
+    
+    The first image provided is the subject image. The second image is the new background.
+    
+    Output: Return ONLY the final combined image. Do not return text.`;
+
+    const textPart = { text: prompt };
+
+    console.log('Sending subject image, background image, and prompt to the model...');
+    const response: GenerateContentResponse = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image-preview',
+        contents: { parts: [subjectImagePart, backgroundImagePart, textPart] },
+        config: {
+            responseModalities: [Modality.IMAGE, Modality.TEXT],
+        },
+    });
+    console.log('Received response from model for combination.', response);
+    
+    return handleApiResponse(response, 'combine');
+};
+
+/**
+ * Removes the background from an image, making it transparent.
+ * @param subjectImage The image containing the subject.
+ * @returns A promise that resolves to the data URL of the image with a transparent background.
+ */
+export const generateRemovedBackgroundImage = async (
+    subjectImage: File,
+): Promise<string> => {
+    console.log('Starting background removal...');
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+    
+    const subjectImagePart = await fileToPart(subjectImage);
+    
+    const prompt = `You are an expert photo editor AI. Your task is to accurately identify the main subject in the provided image and completely remove its background, making the background transparent. 
+    
+    The output MUST be a PNG image with a transparent alpha channel. Do not add any new background or color. The subject must be perfectly preserved.
+    
+    Output: Return ONLY the final image with the transparent background. Do not return text.`;
+
+    const textPart = { text: prompt };
+
+    console.log('Sending image and background removal prompt to the model...');
+    const response: GenerateContentResponse = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image-preview',
+        contents: { parts: [subjectImagePart, textPart] },
+        config: {
+            responseModalities: [Modality.IMAGE, Modality.TEXT],
+        },
+    });
+    console.log('Received response from model for background removal.', response);
+    
+    return handleApiResponse(response, 'background_removal');
+};
+
+
+/**
+ * Expands an image by generating new content around it (outpainting).
+ * @param originalImageFile The original image file.
+ * @param prompt A text prompt to guide the content generation.
+ * @param targetWidth The width of the final expanded image.
+ * @param targetHeight The height of the final expanded image.
+ * @param imageX The x-coordinate where the original image is placed on the new canvas.
+ * @param imageY The y-coordinate where the original image is placed on the new canvas.
+ * @returns A promise that resolves to the data URL of the expanded image.
+ */
+export const generateExpandedImage = async (
+    originalImageFile: File,
+    prompt: string,
+    targetWidth: number,
+    targetHeight: number,
+    imageX: number,
+    imageY: number,
+): Promise<string> => {
+    console.log('Starting generative expand (outpainting)...');
+    
+    const originalImage = new Image();
+    const originalImageUrl = URL.createObjectURL(originalImageFile);
+    await new Promise<void>((resolve, reject) => {
+        originalImage.onload = () => {
+            URL.revokeObjectURL(originalImageUrl);
+            resolve();
+        };
+        originalImage.onerror = reject;
+        originalImage.src = originalImageUrl;
+    });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error("Could not create canvas context for expansion.");
+
+    ctx.drawImage(originalImage, imageX, imageY);
+    const canvasDataUrl = canvas.toDataURL('image/png');
+    const canvasFile = dataURLtoFile(canvasDataUrl, 'expand_canvas.png');
+    
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+    const canvasPart = await fileToPart(canvasFile);
+    
+    const textPrompt = `You are an expert photo editor AI performing an outpainting task. The user has provided an image placed on a larger transparent canvas. Your task is to fill in the surrounding transparent areas with new, realistic content that seamlessly extends the original image.
+
+    The user has provided an optional text prompt to guide the generation: "${prompt || 'No specific prompt provided, continue the scene naturally.'}"
+
+    The final image must be fully opaque and have the exact same dimensions as the input canvas (${targetWidth}x${targetHeight} pixels). Do not change the original image content that has been provided.
+
+    Output: Return ONLY the final edited image. Do not return text.`;
+    const textPart = { text: textPrompt };
+
+    console.log('Sending composed canvas and expand prompt to the model...');
+    const response: GenerateContentResponse = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image-preview',
+        contents: { parts: [canvasPart, textPart] },
+        config: {
+            responseModalities: [Modality.IMAGE, Modality.TEXT],
+        },
+    });
+    console.log('Received response from model for expand.', response);
+    
+    return handleApiResponse(response, 'expand');
 };
