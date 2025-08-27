@@ -6,7 +6,7 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import ReactCrop, { type Crop, type PixelCrop } from 'react-image-crop';
-import { generateErasedImage, generateFilteredImage, generateAdjustedImage, generateCombinedImage, generateExpandedImage, generateRemovedBackgroundImage, dataURLtoFile } from './services/geminiService';
+import { generateErasedImage, generateFilteredImage, generateAdjustedImage, generateCombinedImage, generateExpandedImage, generateRemovedBackgroundImage, generatePortraitEnhancement, dataURLtoFile } from './services/geminiService';
 import { saveImageToGallery } from './services/galleryService';
 import Header from './components/Header';
 import Spinner from './components/Spinner';
@@ -18,13 +18,14 @@ import ErasePanel from './components/ErasePanel';
 import ExpandPanel from './components/ExpandPanel';
 import BackgroundPanel from './components/BackgroundPanel';
 import BatchProcessor from './components/BatchProcessor';
+import PortraitPanel from './components/PortraitPanel';
 import { UndoIcon, RedoIcon, EyeIcon, ZoomInIcon, ZoomOutIcon, ExpandIcon } from './components/icons';
 import StartScreen from './components/StartScreen';
 import GalleryModal from './components/GalleryModal';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { TranslationKey } from './translations';
 
-type Tab = 'erase' | 'adjust' | 'filters' | 'crop' | 'combine' | 'expand' | 'bgRemove';
+type Tab = 'erase' | 'adjust' | 'filters' | 'crop' | 'combine' | 'expand' | 'bgRemove' | 'portrait';
 type SaveState = 'idle' | 'saving' | 'saved';
 type ViewMode = 'editor' | 'batch';
 
@@ -36,6 +37,7 @@ const tabTranslationMap: Record<Tab, TranslationKey> = {
   adjust: 'app.tabAdjust',
   filters: 'app.tabFilters',
   combine: 'app.tabCombine',
+  portrait: 'app.tabPortrait',
 };
 
 const AppContent: React.FC = () => {
@@ -90,6 +92,14 @@ const AppContent: React.FC = () => {
     setIsMaskEmpty(true);
   }, []);
 
+  const handleTabClick = (tab: Tab) => {
+    setActiveTab(tab);
+  };
+
+  const handleViewModeSwitch = (mode: ViewMode) => {
+      setViewMode(mode);
+  };
+
   // Effect to create and revoke object URLs safely for the current image
   useEffect(() => {
     if (currentImage) {
@@ -140,7 +150,7 @@ const AppContent: React.FC = () => {
     setError(null);
     setHistory([file]);
     setHistoryIndex(0);
-    setActiveTab('erase');
+    setActiveTab('filters');
     setCrop(undefined);
     setCompletedCrop(undefined);
     resetZoomAndPan();
@@ -247,6 +257,29 @@ const AppContent: React.FC = () => {
         setIsLoading(false);
     }
   }, [currentImage, addImageToHistory, t]);
+
+  const handleApplyPortraitEnhancement = useCallback(async (prompt: string) => {
+    if (!currentImage) {
+      setError(t('app.errorNoImageForPortrait'));
+      return;
+    }
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+        const resultUrl = await generatePortraitEnhancement(currentImage, prompt);
+        const newImageFile = dataURLtoFile(resultUrl, `portrait-${Date.now()}.png`);
+        addImageToHistory(newImageFile);
+    } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
+        setError(t('app.errorFailedToEnhancePortrait', { errorMessage }));
+        console.error(err);
+    } finally {
+        setIsLoading(false);
+    }
+  }, [currentImage, addImageToHistory, t]);
+
 
   const handleApplyCrop = useCallback(() => {
     if (!completedCrop || !imgRef.current) {
@@ -729,16 +762,17 @@ const handleSaveToGallery = async () => {
                 {activeTab === 'adjust' && <AdjustmentPanel onApplyAdjustment={handleApplyAdjustment} isLoading={isLoading} />}
                 {activeTab === 'filters' && <FilterPanel onApplyFilter={handleApplyFilter} isLoading={isLoading} />}
                 {activeTab === 'bgRemove' && <BackgroundPanel onRemoveBackground={handleRemoveBackground} isLoading={isLoading} />}
+                {activeTab === 'portrait' && <PortraitPanel onApplyEnhancement={handleApplyPortraitEnhancement} isLoading={isLoading} />}
             </div>
           </>
         )}
         
         <div className="w-full bg-gray-800/80 border border-gray-700/80 rounded-lg p-2 flex items-center justify-center gap-1 backdrop-blur-sm">
-            {(['erase', 'expand', 'bgRemove', 'crop', 'adjust', 'filters', 'combine'] as Tab[]).map(tab => (
+            {(['filters', 'adjust', 'portrait', 'erase', 'expand', 'bgRemove', 'crop', 'combine'] as Tab[]).map(tab => (
                  <button
                     key={tab}
-                    onClick={() => setActiveTab(tab)}
-                    className={`w-full capitalize font-semibold py-3 px-4 rounded-md transition-all duration-200 text-sm ${
+                    onClick={() => handleTabClick(tab)}
+                    className={`relative w-full capitalize font-semibold py-3 px-4 rounded-md transition-all duration-200 text-sm flex items-center justify-center gap-2 ${
                         activeTab === tab 
                         ? 'bg-gradient-to-br from-blue-500 to-cyan-400 text-white shadow-lg shadow-cyan-500/40' 
                         : 'text-gray-300 hover:text-white hover:bg-white/10'
@@ -825,7 +859,7 @@ const handleSaveToGallery = async () => {
         <Header 
             onOpenGallery={() => setIsGalleryOpen(true)}
             viewMode={viewMode}
-            onSwitchView={setViewMode}
+            onSwitchView={handleViewModeSwitch}
         />
         <main className={`flex-grow w-full max-w-[1600px] mx-auto p-4 md:p-8 flex justify-center ${viewMode === 'editor' && !currentImage ? 'items-center' : 'items-start'}`}>
             {viewMode === 'editor' ? renderEditorContent() : <BatchProcessor onExit={() => setViewMode('editor')} />}

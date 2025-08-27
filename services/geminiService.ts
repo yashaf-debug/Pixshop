@@ -190,6 +190,47 @@ Output: Return ONLY the final adjusted image. Do not return text.`;
     return handleApiResponse(response, 'adjustment');
 };
 
+/**
+ * Generates a portrait with a specific enhancement applied.
+ * @param originalImage The original image file.
+ * @param enhancementPrompt The text prompt describing the desired portrait enhancement.
+ * @returns A promise that resolves to the data URL of the enhanced image.
+ */
+export const generatePortraitEnhancement = async (
+    originalImage: File,
+    enhancementPrompt: string,
+): Promise<string> => {
+    console.log(`Starting portrait enhancement: ${enhancementPrompt}`);
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+    
+    const originalImagePart = await fileToPart(originalImage);
+    const prompt = `You are an expert portrait retouching AI. Your task is to enhance the provided portrait based on the user's request, ensuring the result is natural and high-quality.
+User Request: "${enhancementPrompt}"
+
+General Guidelines:
+- The subject's identity, facial features, and structure MUST remain unchanged.
+- Preserve natural skin texture. Avoid making the skin look overly smooth or plastic-like.
+- The changes should be subtle and enhance the existing photo, not create a new person.
+
+Safety & Ethics Policy:
+- You MUST REFUSE any request to change a person's fundamental race, ethnicity, or age.
+
+Output: Return ONLY the final enhanced portrait. Do not return text.`;
+    const textPart = { text: prompt };
+
+    console.log('Sending image and portrait enhancement prompt to the model...');
+    const response: GenerateContentResponse = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image-preview',
+        contents: { parts: [originalImagePart, textPart] },
+        config: {
+            responseModalities: [Modality.IMAGE, Modality.TEXT],
+        },
+    });
+    console.log('Received response from model for portrait enhancement.', response);
+    
+    return handleApiResponse(response, 'portrait');
+};
+
 
 /**
  * Combines a subject image with a background image.

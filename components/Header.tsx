@@ -50,7 +50,7 @@ const Header: React.FC<HeaderProps> = ({ onOpenGallery, viewMode, onSwitchView }
                 <>
                     <button 
                         onClick={() => onSwitchView('batch')}
-                        className="flex items-center gap-2 text-gray-300 hover:text-white hover:bg-white/10 transition-colors px-4 py-2 rounded-lg"
+                        className="relative flex items-center gap-2 text-gray-300 hover:text-white hover:bg-white/10 transition-colors px-4 py-2 rounded-lg"
                     >
                         <BatchIcon className="w-5 h-5" />
                         <span className="hidden sm:inline font-medium">{t('header.batchEdit')}</span>
