@@ -1,3 +1,7 @@
+
+
+
+
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -91,7 +95,7 @@ export const generateErasedImage = async (
     maskImage: File,
 ): Promise<string> => {
     console.log('Starting generative erase...');
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
     const originalImagePart = await fileToPart(originalImage);
     const maskImagePart = await fileToPart(maskImage);
@@ -123,7 +127,7 @@ export const generateFilteredImage = async (
     filterPrompt: string,
 ): Promise<string> => {
     console.log(`Starting filter generation: ${filterPrompt}`);
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     const originalImagePart = await fileToPart(originalImage);
     const prompt = `You are an expert photo editor AI. Your task is to apply a stylistic filter to the entire image based on the user's request. Do not change the composition or content, only apply the style.
@@ -160,7 +164,7 @@ export const generateAdjustedImage = async (
     adjustmentPrompt: string,
 ): Promise<string> => {
     console.log(`Starting global adjustment generation: ${adjustmentPrompt}`);
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     const originalImagePart = await fileToPart(originalImage);
     const prompt = `You are an expert photo editor AI. Your task is to perform a natural, global adjustment to the entire image based on the user's request.
@@ -201,7 +205,7 @@ export const generatePortraitEnhancement = async (
     enhancementPrompt: string,
 ): Promise<string> => {
     console.log(`Starting portrait enhancement: ${enhancementPrompt}`);
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     const originalImagePart = await fileToPart(originalImage);
     const prompt = `You are an expert portrait retouching AI. Your task is to enhance the provided portrait based on the user's request, ensuring the result is natural and high-quality.
@@ -231,6 +235,44 @@ Output: Return ONLY the final enhanced portrait. Do not return text.`;
     return handleApiResponse(response, 'portrait');
 };
 
+/**
+ * Applies a one-click enhancement to an image, improving quality.
+ * @param originalImage The original image file.
+ * @returns A promise that resolves to the data URL of the enhanced image.
+ */
+export const generateEnhancedImage = async (
+    originalImage: File
+): Promise<string> => {
+    console.log('Starting one-click image enhancement...');
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    
+    const originalImagePart = await fileToPart(originalImage);
+    const prompt = `You are an expert photo restoration and enhancement AI. The user has provided an image and requested a one-click "AI Enhance". Your task is to perform a comprehensive set of improvements to make the image look significantly better, as if professionally edited, while maintaining a natural and photorealistic appearance.
+
+Your process should include the following steps, applied intelligently based on the image's needs:
+1.  **Upscale & Denoise**: Increase the image's resolution and clarity. Remove digital noise, grain, and compression artifacts, especially in dark areas. If the image is blurry, apply deblurring algorithms to improve focus.
+2.  **Color & Tone Correction**: Automatically adjust brightness, contrast, and saturation for a balanced and vibrant look. Correct any color casts (e.g., yellowish or bluish tints) to achieve natural colors.
+3.  **Detail Enhancement**: Sharpen key elements of the image, like faces, textures, and architectural details, but avoid over-sharpening that creates halos or a brittle look.
+4.  **Lighting Correction**: Improve the overall lighting. If the image is backlit, recover details from the shadows without blowing out the highlights.
+
+The final result must be a high-quality, clean, and visually appealing version of the original image.
+
+Output: Return ONLY the final enhanced image. Do not return text.`;
+    const textPart = { text: prompt };
+
+    console.log('Sending image and enhancement prompt to the model...');
+    const response: GenerateContentResponse = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image-preview',
+        contents: { parts: [originalImagePart, textPart] },
+        config: {
+            responseModalities: [Modality.IMAGE, Modality.TEXT],
+        },
+    });
+    console.log('Received response from model for enhancement.', response);
+    
+    return handleApiResponse(response, 'enhancement');
+};
+
 
 /**
  * Combines a subject image with a background image.
@@ -243,7 +285,7 @@ export const generateCombinedImage = async (
     backgroundImage: File,
 ): Promise<string> => {
     console.log('Starting image combination...');
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     const subjectImagePart = await fileToPart(subjectImage);
     const backgroundImagePart = await fileToPart(backgroundImage);
@@ -280,7 +322,7 @@ export const generateRemovedBackgroundImage = async (
     subjectImage: File,
 ): Promise<string> => {
     console.log('Starting background removal...');
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     const subjectImagePart = await fileToPart(subjectImage);
     
@@ -347,7 +389,7 @@ export const generateExpandedImage = async (
     const canvasDataUrl = canvas.toDataURL('image/png');
     const canvasFile = dataURLtoFile(canvasDataUrl, 'expand_canvas.png');
     
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const canvasPart = await fileToPart(canvasFile);
     
     const textPrompt = `You are an expert photo editor AI performing an outpainting task. The user has provided an image placed on a larger transparent canvas. Your task is to fill in the surrounding transparent areas with new, realistic content that seamlessly extends the original image.
@@ -370,4 +412,44 @@ export const generateExpandedImage = async (
     console.log('Received response from model for expand.', response);
     
     return handleApiResponse(response, 'expand');
+};
+
+/**
+ * Generates images from a text prompt.
+ * @param prompt The text description of the image to generate.
+ * @param numberOfImages The number of images to generate.
+ * @param aspectRatio The desired aspect ratio of the images.
+ * @returns A promise that resolves to an array of data URLs of the generated images.
+ */
+export const generateImagesFromPrompt = async (
+    prompt: string,
+    numberOfImages: number,
+    aspectRatio: '1:1' | '16:9' | '9:16' | '4:3' | '3:4',
+): Promise<string[]> => {
+    console.log(`Starting text-to-image generation for: "${prompt}"`);
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    
+    const response = await ai.models.generateImages({
+        model: 'imagen-4.0-generate-001',
+        prompt,
+        config: {
+            numberOfImages,
+            aspectRatio,
+            outputMimeType: 'image/png',
+        },
+    });
+    
+    console.log('Received response from model for image generation.', response);
+
+    if (!response.generatedImages || response.generatedImages.length === 0) {
+        // Fix: Property 'promptFeedback' does not exist on type 'GenerateImagesResponse'.
+        // The check for a block reason has been removed as `promptFeedback` is not part of the `GenerateImagesResponse` type.
+        // If image generation fails, a generic error message will be thrown.
+        throw new Error('The AI model did not return any images. This may be due to safety filters or a problem with the prompt.');
+    }
+
+    return response.generatedImages.map(img => {
+        const base64ImageBytes: string = img.image.imageBytes;
+        return `data:image/png;base64,${base64ImageBytes}`;
+    });
 };

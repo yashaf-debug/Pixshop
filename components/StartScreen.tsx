@@ -4,14 +4,15 @@
 */
 
 import React, { useState } from 'react';
-import { UploadIcon, MagicWandIcon, PaletteIcon, SunIcon } from './icons';
+import { UploadIcon, MagicWandIcon, PaletteIcon, SunIcon, StarsIcon } from './icons';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface StartScreenProps {
   onFileSelect: (files: FileList | null) => void;
+  onGenerateClick: () => void;
 }
 
-const StartScreen: React.FC<StartScreenProps> = ({ onFileSelect }) => {
+const StartScreen: React.FC<StartScreenProps> = ({ onFileSelect, onGenerateClick }) => {
   const { t } = useLanguage();
   const [isDraggingOver, setIsDraggingOver] = useState(false);
 
@@ -39,13 +40,21 @@ const StartScreen: React.FC<StartScreenProps> = ({ onFileSelect }) => {
         </h1>
         <p className="max-w-3xl mx-auto text-lg text-gray-400 mb-8">{t('startScreen.subtitle')}</p>
         
-        <div className="flex flex-col items-center gap-4">
-          <label htmlFor="file-upload" className="cursor-pointer bg-gradient-to-br from-blue-600 to-blue-500 text-white font-bold py-4 px-8 rounded-lg transition-all duration-300 ease-in-out shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/40 hover:-translate-y-px active:scale-95 active:shadow-inner text-lg">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+          <label htmlFor="file-upload" className="w-full sm:w-auto cursor-pointer flex items-center justify-center gap-2 bg-gradient-to-br from-blue-600 to-blue-500 text-white font-bold py-4 px-8 rounded-lg transition-all duration-300 ease-in-out shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/40 hover:-translate-y-px active:scale-95 active:shadow-inner text-lg">
+            <UploadIcon className="w-6 h-6" />
             {t('startScreen.uploadButton')}
           </label>
           <input id="file-upload" type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
-          <p className="text-gray-500">{t('startScreen.dragDrop')}</p>
+          <button 
+            onClick={onGenerateClick}
+            className="w-full sm:w-auto cursor-pointer flex items-center justify-center gap-2 bg-gray-700 text-gray-200 font-bold py-4 px-8 rounded-lg transition-all duration-300 ease-in-out shadow-lg shadow-gray-900/20 hover:shadow-xl hover:shadow-gray-900/40 hover:bg-gray-600 hover:-translate-y-px active:scale-95 active:shadow-inner text-lg"
+          >
+            <StarsIcon className="w-6 h-6" />
+            {t('startScreen.generateButton')}
+          </button>
         </div>
+        <p className="text-gray-500 mt-4">{t('startScreen.dragDrop')}</p>
         
         <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
           <div className="bg-white/5 p-6 rounded-lg border border-white/10">

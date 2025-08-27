@@ -14,15 +14,15 @@ const SparkleIcon: React.FC<{ className?: string }> = ({ className }) => (
 
 interface HeaderProps {
     onOpenGallery: () => void;
-    viewMode: 'editor' | 'batch';
-    onSwitchView: (mode: 'editor' | 'batch') => void;
+    appMode: 'start' | 'editor' | 'batch' | 'generator';
+    onSwitchMode: (mode: 'editor' | 'batch') => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ onOpenGallery, viewMode, onSwitchView }) => {
+const Header: React.FC<HeaderProps> = ({ onOpenGallery, appMode, onSwitchMode }) => {
   const { t, language, setLanguage } = useLanguage();
 
   return (
-    <header className="w-full py-4 px-4 sm:px-8 border-b border-gray-700 bg-gray-800/30 backdrop-blur-sm sticky top-0 z-50">
+    <header className="w-full py-4 px-4 sm:px-8 border-b border-gray-700/50 bg-gray-800/30 backdrop-blur-sm sticky top-0 z-50">
       <div className="flex items-center justify-between">
           <div className="flex items-center justify-center gap-3">
               <SparkleIcon className="w-6 h-6 text-blue-400" />
@@ -46,10 +46,10 @@ const Header: React.FC<HeaderProps> = ({ onOpenGallery, viewMode, onSwitchView }
                   </button>
               </div>
 
-              {viewMode === 'editor' ? (
+              {appMode === 'editor' && (
                 <>
                     <button 
-                        onClick={() => onSwitchView('batch')}
+                        onClick={() => onSwitchMode('batch')}
                         className="relative flex items-center gap-2 text-gray-300 hover:text-white hover:bg-white/10 transition-colors px-4 py-2 rounded-lg"
                     >
                         <BatchIcon className="w-5 h-5" />
@@ -64,9 +64,10 @@ const Header: React.FC<HeaderProps> = ({ onOpenGallery, viewMode, onSwitchView }
                         <span className="hidden sm:inline font-medium">{t('header.gallery')}</span>
                     </button>
                 </>
-              ) : (
+              )}
+              {appMode === 'batch' && (
                 <button 
-                    onClick={() => onSwitchView('editor')}
+                    onClick={() => onSwitchMode('editor')}
                     className="flex items-center gap-2 text-gray-300 hover:text-white hover:bg-white/10 transition-colors px-4 py-2 rounded-lg"
                 >
                     <UndoIcon className="w-5 h-5" />
