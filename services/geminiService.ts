@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 
-import { GoogleGenAI, GenerateContentResponse, Modality } from "@google/genai";
+// Fix: Replaced unexported `Contents` and `Config` types with `Content` and `GenerateContentConfig`.
+import { GoogleGenAI, GenerateContentResponse, Modality, Content } from "@google/genai";
 
 // Helper to convert a data URL string to a File object
 export const dataURLtoFile = (dataurl: string, filename: string): File => {
@@ -40,6 +41,59 @@ const fileToPart = async (file: File): Promise<{ inlineData: { mimeType: string;
     const data = arr[1];
     return { inlineData: { mimeType, data } };
 };
+
+/**
+ * A dedicated function to call the image editing model via a local proxy.
+ * This avoids issues with ReadableStream not being supported by some proxies when using the SDK directly.
+ * It manually constructs the fetch request with a stringified JSON body.
+ * @param contents The contents payload for the Gemini API.
+ * @param config The configuration payload for the Gemini API.
+ * @returns A promise that resolves to the API's JSON response.
+ */
+const callImageEditProxy = async (contents: Content, config: { [key: string]: any }): Promise<GenerateContentResponse> => {
+    const PROXY_URL = '/api-proxy/v1beta/models/gemini-2.5-flash-image-preview:generateContent';
+
+    const payload = {
+        contents,
+        generationConfig: {
+            ...config,
+        },
+    };
+
+    const response = await fetch(PROXY_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+        let errorBody;
+        try {
+            errorBody = await response.json();
+        } catch (e) {
+            errorBody = await response.text();
+        }
+        console.error('Proxy API Error:', errorBody);
+        const errorMessage = errorBody?.error?.message || response.statusText || 'Failed to fetch from proxy.';
+        throw new Error(`Proxying failed: ${errorMessage}`);
+    }
+
+    const responseData = await response.json();
+    
+    // The SDK's GenerateContentResponse has a useful .text accessor. We can mimic it.
+    const textAccessor = () => {
+        const parts = responseData.candidates?.[0]?.content?.parts || [];
+        return parts.map((part: { text?: string }) => part.text).join('');
+    };
+    
+    return {
+        ...responseData,
+        text: textAccessor(),
+    } as GenerateContentResponse;
+};
+
 
 const handleApiResponse = (
     response: GenerateContentResponse,
@@ -94,8 +148,7 @@ export const generateErasedImage = async (
     userPrompt: string,
 ): Promise<string> => {
     console.log(`Starting generative edit with prompt: "${userPrompt}"`);
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
+    
     const originalImagePart = await fileToPart(originalImage);
     const maskImagePart = await fileToPart(maskImage);
     
@@ -105,14 +158,11 @@ export const generateErasedImage = async (
 
     const textPart = { text: prompt };
 
-    console.log('Sending original image, mask, and prompt to the model...');
-    const response: GenerateContentResponse = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image-preview',
-        contents: { parts: [originalImagePart, maskImagePart, textPart] },
-        config: {
-            responseModalities: [Modality.IMAGE, Modality.TEXT],
-        },
-    });
+    console.log('Sending original image, mask, and prompt to the model via proxy...');
+    const response = await callImageEditProxy(
+        { parts: [originalImagePart, maskImagePart, textPart] },
+        { responseModalities: [Modality.IMAGE, Modality.TEXT] }
+    );
     console.log('Received response from model for generative edit.', response);
     
     return handleApiResponse(response, 'generative edit');
@@ -129,7 +179,6 @@ export const generateFilteredImage = async (
     filterPrompt: string,
 ): Promise<string> => {
     console.log(`Starting filter generation: ${filterPrompt}`);
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     const originalImagePart = await fileToPart(originalImage);
     const prompt = `You are an expert photo editor AI. Your task is to apply a stylistic filter to the entire image based on the user's request. Do not change the composition or content, only apply the style.
@@ -142,14 +191,11 @@ Safety & Ethics Policy:
 Output: Return ONLY the final filtered image. Do not return text.`;
     const textPart = { text: prompt };
 
-    console.log('Sending image and filter prompt to the model...');
-    const response: GenerateContentResponse = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image-preview',
-        contents: { parts: [originalImagePart, textPart] },
-        config: {
-            responseModalities: [Modality.IMAGE, Modality.TEXT],
-        },
-    });
+    console.log('Sending image and filter prompt to the model via proxy...');
+    const response = await callImageEditProxy(
+        { parts: [originalImagePart, textPart] },
+        { responseModalities: [Modality.IMAGE, Modality.TEXT] }
+    );
     console.log('Received response from model for filter.', response);
     
     return handleApiResponse(response, 'filter');
@@ -166,7 +212,6 @@ export const generateAdjustedImage = async (
     adjustmentPrompt: string,
 ): Promise<string> => {
     console.log(`Starting global adjustment generation: ${adjustmentPrompt}`);
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     const originalImagePart = await fileToPart(originalImage);
     const prompt = `You are an expert photo editor AI. Your task is to perform a natural, global adjustment to the entire image based on the user's request.
@@ -183,14 +228,11 @@ Safety & Ethics Policy:
 Output: Return ONLY the final adjusted image. Do not return text.`;
     const textPart = { text: prompt };
 
-    console.log('Sending image and adjustment prompt to the model...');
-    const response: GenerateContentResponse = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image-preview',
-        contents: { parts: [originalImagePart, textPart] },
-        config: {
-            responseModalities: [Modality.IMAGE, Modality.TEXT],
-        },
-    });
+    console.log('Sending image and adjustment prompt to the model via proxy...');
+    const response = await callImageEditProxy(
+        { parts: [originalImagePart, textPart] },
+        { responseModalities: [Modality.IMAGE, Modality.TEXT] }
+    );
     console.log('Received response from model for adjustment.', response);
     
     return handleApiResponse(response, 'adjustment');
@@ -207,7 +249,6 @@ export const generatePortraitEnhancement = async (
     enhancementPrompt: string,
 ): Promise<string> => {
     console.log(`Starting portrait enhancement: ${enhancementPrompt}`);
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     const originalImagePart = await fileToPart(originalImage);
     const prompt = `You are an expert portrait retouching AI. Your task is to enhance the provided portrait based on the user's request, ensuring the result is natural and high-quality.
@@ -224,14 +265,11 @@ Safety & Ethics Policy:
 Output: Return ONLY the final enhanced portrait. Do not return text.`;
     const textPart = { text: prompt };
 
-    console.log('Sending image and portrait enhancement prompt to the model...');
-    const response: GenerateContentResponse = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image-preview',
-        contents: { parts: [originalImagePart, textPart] },
-        config: {
-            responseModalities: [Modality.IMAGE, Modality.TEXT],
-        },
-    });
+    console.log('Sending image and portrait enhancement prompt to the model via proxy...');
+    const response = await callImageEditProxy(
+        { parts: [originalImagePart, textPart] },
+        { responseModalities: [Modality.IMAGE, Modality.TEXT] }
+    );
     console.log('Received response from model for portrait enhancement.', response);
     
     return handleApiResponse(response, 'portrait');
@@ -246,7 +284,6 @@ export const generateEnhancedImage = async (
     originalImage: File
 ): Promise<string> => {
     console.log('Starting one-click image enhancement...');
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     const originalImagePart = await fileToPart(originalImage);
     const prompt = `You are an expert photo restoration and enhancement AI. The user has provided an image and requested a one-click "AI Enhance". Your task is to perform a comprehensive set of improvements to make the image look significantly better, as if professionally edited, while maintaining a natural and photorealistic appearance.
@@ -262,14 +299,11 @@ The final result must be a high-quality, clean, and visually appealing version o
 Output: Return ONLY the final enhanced image. Do not return text.`;
     const textPart = { text: prompt };
 
-    console.log('Sending image and enhancement prompt to the model...');
-    const response: GenerateContentResponse = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image-preview',
-        contents: { parts: [originalImagePart, textPart] },
-        config: {
-            responseModalities: [Modality.IMAGE, Modality.TEXT],
-        },
-    });
+    console.log('Sending image and enhancement prompt to the model via proxy...');
+    const response = await callImageEditProxy(
+        { parts: [originalImagePart, textPart] },
+        { responseModalities: [Modality.IMAGE, Modality.TEXT] }
+    );
     console.log('Received response from model for enhancement.', response);
     
     return handleApiResponse(response, 'enhancement');
@@ -287,7 +321,6 @@ export const generateCombinedImage = async (
     backgroundImage: File,
 ): Promise<string> => {
     console.log('Starting image combination...');
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     const subjectImagePart = await fileToPart(subjectImage);
     const backgroundImagePart = await fileToPart(backgroundImage);
@@ -302,14 +335,11 @@ export const generateCombinedImage = async (
 
     const textPart = { text: prompt };
 
-    console.log('Sending subject image, background image, and prompt to the model...');
-    const response: GenerateContentResponse = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image-preview',
-        contents: { parts: [subjectImagePart, backgroundImagePart, textPart] },
-        config: {
-            responseModalities: [Modality.IMAGE, Modality.TEXT],
-        },
-    });
+    console.log('Sending subject image, background image, and prompt to the model via proxy...');
+    const response = await callImageEditProxy(
+        { parts: [subjectImagePart, backgroundImagePart, textPart] },
+        { responseModalities: [Modality.IMAGE, Modality.TEXT] }
+    );
     console.log('Received response from model for combination.', response);
     
     return handleApiResponse(response, 'combine');
@@ -324,7 +354,6 @@ export const generateRemovedBackgroundImage = async (
     subjectImage: File,
 ): Promise<string> => {
     console.log('Starting background removal...');
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     const subjectImagePart = await fileToPart(subjectImage);
     
@@ -336,14 +365,11 @@ export const generateRemovedBackgroundImage = async (
 
     const textPart = { text: prompt };
 
-    console.log('Sending image and background removal prompt to the model...');
-    const response: GenerateContentResponse = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image-preview',
-        contents: { parts: [subjectImagePart, textPart] },
-        config: {
-            responseModalities: [Modality.IMAGE, Modality.TEXT],
-        },
-    });
+    console.log('Sending image and background removal prompt to the model via proxy...');
+    const response = await callImageEditProxy(
+        { parts: [subjectImagePart, textPart] },
+        { responseModalities: [Modality.IMAGE, Modality.TEXT] }
+    );
     console.log('Received response from model for background removal.', response);
     
     return handleApiResponse(response, 'background_removal');
@@ -391,7 +417,6 @@ export const generateExpandedImage = async (
     const canvasDataUrl = canvas.toDataURL('image/png');
     const canvasFile = dataURLtoFile(canvasDataUrl, 'expand_canvas.png');
     
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const canvasPart = await fileToPart(canvasFile);
     
     const textPrompt = `You are an expert photo editor AI performing an outpainting task. The user has provided an image placed on a larger transparent canvas. Your task is to fill in the surrounding transparent areas with new, realistic content that seamlessly extends the original image.
@@ -403,14 +428,11 @@ export const generateExpandedImage = async (
     Output: Return ONLY the final edited image. Do not return text.`;
     const textPart = { text: textPrompt };
 
-    console.log('Sending composed canvas and expand prompt to the model...');
-    const response: GenerateContentResponse = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image-preview',
-        contents: { parts: [canvasPart, textPart] },
-        config: {
-            responseModalities: [Modality.IMAGE, Modality.TEXT],
-        },
-    });
+    console.log('Sending composed canvas and expand prompt to the model via proxy...');
+    const response = await callImageEditProxy(
+        { parts: [canvasPart, textPart] },
+        { responseModalities: [Modality.IMAGE, Modality.TEXT] }
+    );
     console.log('Received response from model for expand.', response);
     
     return handleApiResponse(response, 'expand');
