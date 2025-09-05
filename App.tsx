@@ -1,4 +1,5 @@
 
+
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -56,6 +57,7 @@ const EditorContent: React.FC<EditorContentProps> = ({ initialImage, onUploadNew
   const [history, setHistory] = useState<File[]>([]);
   const [historyIndex, setHistoryIndex] = useState<number>(-1);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [loadingMessage, setLoadingMessage] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('enhance');
   
@@ -163,6 +165,7 @@ const EditorContent: React.FC<EditorContentProps> = ({ initialImage, onUploadNew
   
     setIsLoading(true);
     setError(null);
+    setLoadingMessage('');
   
     try {
       const maskCanvas = maskCanvasRef.current;
@@ -207,6 +210,7 @@ const EditorContent: React.FC<EditorContentProps> = ({ initialImage, onUploadNew
     if (!currentImage) return;
     setIsLoading(true);
     setError(null);
+    setLoadingMessage('');
     try {
         const filteredImageUrl = await generateFilteredImage(currentImage, filterPrompt);
         const newImageFile = dataURLtoFile(filteredImageUrl, `filtered-${Date.now()}.png`);
@@ -224,6 +228,7 @@ const EditorContent: React.FC<EditorContentProps> = ({ initialImage, onUploadNew
     if (!currentImage) return;
     setIsLoading(true);
     setError(null);
+    setLoadingMessage('');
     try {
         const adjustedImageUrl = await generateAdjustedImage(currentImage, adjustmentPrompt);
         const newImageFile = dataURLtoFile(adjustedImageUrl, `adjusted-${Date.now()}.png`);
@@ -241,6 +246,7 @@ const EditorContent: React.FC<EditorContentProps> = ({ initialImage, onUploadNew
     if (!currentImage) return;
     setIsLoading(true);
     setError(null);
+    setLoadingMessage('');
     try {
         const resultUrl = await generatePortraitEnhancement(currentImage, prompt);
         const newImageFile = dataURLtoFile(resultUrl, `portrait-${Date.now()}.png`);
@@ -258,6 +264,7 @@ const EditorContent: React.FC<EditorContentProps> = ({ initialImage, onUploadNew
     if (!currentImage) return;
     setIsLoading(true);
     setError(null);
+    setLoadingMessage('');
     try {
         const resultUrl = await generateEnhancedImage(currentImage);
         const newImageFile = dataURLtoFile(resultUrl, `enhanced-${Date.now()}.png`);
@@ -296,6 +303,7 @@ const EditorContent: React.FC<EditorContentProps> = ({ initialImage, onUploadNew
     if (!currentImage || !imgRef.current) return;
     setIsLoading(true);
     setError(null);
+    setLoadingMessage('');
     try {
         const expandedImageUrl = await generateExpandedImage(currentImage, prompt, newWidth, newHeight, imageX, imageY);
         const newImageFile = dataURLtoFile(expandedImageUrl, `expanded-${Date.now()}.png`);
@@ -313,6 +321,7 @@ const EditorContent: React.FC<EditorContentProps> = ({ initialImage, onUploadNew
     if (!currentImage) return;
     setIsLoading(true);
     setError(null);
+    setLoadingMessage('');
     try {
         const combinedImageUrl = await generateCombinedImage(currentImage, backgroundImage);
         const newImageFile = dataURLtoFile(combinedImageUrl, `combined-${Date.now()}.png`);
@@ -330,6 +339,7 @@ const EditorContent: React.FC<EditorContentProps> = ({ initialImage, onUploadNew
     if (!currentImage) return;
     setIsLoading(true);
     setError(null);
+    setLoadingMessage('');
     try {
         const resultUrl = await generateRemovedBackgroundImage(currentImage);
         const newImageFile = dataURLtoFile(resultUrl, `bg-removed-${Date.now()}.png`);
@@ -357,6 +367,30 @@ const EditorContent: React.FC<EditorContentProps> = ({ initialImage, onUploadNew
       }
   }, [currentImage]);
   
+  const handleHQDownload = useCallback(async () => {
+    if (!currentImage) return;
+    setIsLoading(true);
+    setLoadingMessage(t('app.enhancingMessage'));
+    setError(null);
+    try {
+        const enhancedImageUrl = await generateEnhancedImage(currentImage);
+        const link = document.createElement('a');
+        link.href = enhancedImageUrl;
+        const baseName = currentImage.name.replace(/\.[^/.]+$/, "");
+        link.download = `Pixshop_HQ_${baseName}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
+        setError(t('app.errorFailedToEnhance', { errorMessage }));
+        console.error(err);
+    } finally {
+        setIsLoading(false);
+        setLoadingMessage('');
+    }
+  }, [currentImage, t]);
+
   const getTransformedCoordinates = (e: React.MouseEvent | React.TouchEvent<HTMLDivElement>) => {
     const viewport = viewportRef.current;
     if (!viewport) return null;
@@ -491,7 +525,7 @@ const EditorContent: React.FC<EditorContentProps> = ({ initialImage, onUploadNew
                   {isLoading && (
                       <div className="absolute inset-0 bg-black/70 z-30 flex flex-col items-center justify-center gap-4 animate-fade-in">
                           <Spinner />
-                          <p className="text-gray-300">{t('app.loadingMessage')}</p>
+                          <p className="text-gray-300">{loadingMessage || t('app.loadingMessage')}</p>
                       </div>
                   )}
                   
@@ -533,7 +567,8 @@ const EditorContent: React.FC<EditorContentProps> = ({ initialImage, onUploadNew
               <div className="flex items-center gap-2">
                   <button onClick={onUploadNew} className="px-4 py-2 rounded-md bg-white/10 hover:bg-white/20 transition-colors font-medium">{t('app.uploadNewButton')}</button>
                   <button onClick={handleSaveToGallery} disabled={isLoading || saveState !== 'idle'} className={`px-4 py-2 rounded-md font-medium transition-colors ${saveState === 'idle' ? 'bg-indigo-500 hover:bg-indigo-600 text-white' : saveState === 'saving' ? 'bg-indigo-700 text-gray-300' : 'bg-green-500 text-white'}`}>{saveButtonContent[saveState]}</button>
-                  <button onClick={handleDownload} className="px-4 py-2 rounded-md bg-blue-500 hover:bg-blue-600 text-white font-medium">{t('app.downloadButton')}</button>
+                  <button onClick={handleDownload} disabled={isLoading} className="px-4 py-2 rounded-md bg-blue-500 hover:bg-blue-600 text-white font-medium">{t('app.downloadButton')}</button>
+                  <button onClick={handleHQDownload} disabled={isLoading} className="px-4 py-2 rounded-md bg-gradient-to-br from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-white font-medium transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:from-amber-700 disabled:to-orange-800 disabled:shadow-none">{t('app.downloadHQButton')}</button>
               </div>
           </div>
 
