@@ -1,7 +1,3 @@
-
-
-
-
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -86,21 +82,27 @@ const handleApiResponse = (
 
 /**
  * Generates an inpainted image using generative AI based on a mask.
+ * Can either remove content (if userPrompt is empty) or replace it.
  * @param originalImage The original image file.
- * @param maskImage The mask file where white areas indicate what to remove.
+ * @param maskImage The mask file where white areas indicate what to edit.
+ * @param userPrompt The text prompt describing what to generate in the masked area.
  * @returns A promise that resolves to the data URL of the edited image.
  */
 export const generateErasedImage = async (
     originalImage: File,
     maskImage: File,
+    userPrompt: string,
 ): Promise<string> => {
-    console.log('Starting generative erase...');
+    console.log(`Starting generative edit with prompt: "${userPrompt}"`);
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
     const originalImagePart = await fileToPart(originalImage);
     const maskImagePart = await fileToPart(maskImage);
     
-    const prompt = `You are an expert photo editor AI performing an inpainting task. The user has provided an original image and a mask image. Your task is to remove the content from the original image that corresponds to the white areas of the mask image. Then, you must fill in the removed areas with a realistic and seamless continuation of the surrounding background. The result must be photorealistic and blend perfectly. The areas of the original image corresponding to the black areas of the mask must remain completely unchanged. Output: Return ONLY the final edited image. Do not return text.`;
+    const prompt = userPrompt.trim()
+      ? `You are an expert photo editor AI performing a generative fill task. The user has provided an original image, a mask image, and a text prompt. Your task is to replace the content from the original image that corresponds to the white areas of the mask image with new content based on the user's prompt: "${userPrompt}". The result must be photorealistic and blend perfectly with the rest of the image. The areas of the original image corresponding to the black areas of the mask must remain completely unchanged. Output: Return ONLY the final edited image. Do not return text.`
+      : `You are an expert photo editor AI performing an inpainting task. The user has provided an original image and a mask image. Your task is to remove the content from the original image that corresponds to the white areas of the mask image. Then, you must fill in the removed areas with a realistic and seamless continuation of the surrounding background. The result must be photorealistic and blend perfectly. The areas of the original image corresponding to the black areas of the mask must remain completely unchanged. Output: Return ONLY the final edited image. Do not return text.`;
+
     const textPart = { text: prompt };
 
     console.log('Sending original image, mask, and prompt to the model...');
@@ -111,9 +113,9 @@ export const generateErasedImage = async (
             responseModalities: [Modality.IMAGE, Modality.TEXT],
         },
     });
-    console.log('Received response from model for erase.', response);
+    console.log('Received response from model for generative edit.', response);
     
-    return handleApiResponse(response, 'erase');
+    return handleApiResponse(response, 'generative edit');
 };
 
 /**

@@ -3,12 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { EraserIcon } from './icons';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface ErasePanelProps {
-  onErase: () => void;
+  onApplyEdit: (prompt: string) => void;
   onClearMask: () => void;
   brushSize: number;
   onBrushSizeChange: (size: number) => void;
@@ -17,7 +17,7 @@ interface ErasePanelProps {
 }
 
 const ErasePanel: React.FC<ErasePanelProps> = ({
-  onErase,
+  onApplyEdit,
   onClearMask,
   brushSize,
   onBrushSizeChange,
@@ -25,6 +25,7 @@ const ErasePanel: React.FC<ErasePanelProps> = ({
   isMaskEmpty
 }) => {
   const { t } = useLanguage();
+  const [prompt, setPrompt] = useState('');
 
   return (
     <div className="w-full bg-gray-800/50 border border-gray-700 rounded-lg p-4 flex flex-col items-center gap-4 animate-fade-in backdrop-blur-sm">
@@ -33,8 +34,8 @@ const ErasePanel: React.FC<ErasePanelProps> = ({
         <p className="text-sm text-gray-400 -mt-1">{t('erasePanel.description')}</p>
       </div>
       
-      <div className="w-full flex flex-col md:flex-row items-center justify-center gap-4 mt-2">
-        <div className="flex-grow flex items-center gap-3 w-full md:w-auto">
+      <div className="w-full flex flex-col items-center justify-center gap-4 mt-2">
+        <div className="w-full flex items-center gap-3">
             <label htmlFor="brush-size" className="text-sm font-medium text-gray-400 whitespace-nowrap">{t('erasePanel.brushSize')}:</label>
             <input
                 id="brush-size"
@@ -49,22 +50,33 @@ const ErasePanel: React.FC<ErasePanelProps> = ({
             <span className="font-mono text-sm w-8 text-center">{brushSize}</span>
         </div>
 
-        <button
-            onClick={onClearMask}
-            disabled={isLoading || isMaskEmpty}
-            className="w-full md:w-auto bg-white/10 border border-white/20 text-gray-200 font-semibold py-3 px-5 rounded-md transition-all duration-200 ease-in-out hover:bg-white/20 hover:border-white/30 active:scale-95 text-base disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-            {t('erasePanel.clearButton')}
-        </button>
-        
-        <button
-            onClick={onErase}
-            disabled={isLoading || isMaskEmpty}
-            className="w-full md:w-auto flex items-center justify-center gap-2 bg-gradient-to-br from-blue-600 to-blue-500 text-white font-bold py-3 px-5 rounded-lg transition-all duration-300 ease-in-out shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/40 hover:-translate-y-px active:scale-95 active:shadow-inner text-base disabled:from-blue-800 disabled:to-blue-700 disabled:shadow-none disabled:cursor-not-allowed disabled:transform-none"
-        >
-            <EraserIcon className="w-5 h-5" />
-            {t('erasePanel.eraseButton')}
-        </button>
+        <input
+            type="text"
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder={t('erasePanel.placeholder')}
+            className="w-full bg-gray-800 border border-gray-600 text-gray-200 rounded-lg p-4 focus:ring-2 focus:ring-blue-500 focus:outline-none transition disabled:cursor-not-allowed disabled:opacity-60 text-base"
+            disabled={isLoading}
+        />
+
+        <div className="w-full flex flex-col md:flex-row items-center gap-3">
+            <button
+                onClick={onClearMask}
+                disabled={isLoading || isMaskEmpty}
+                className="w-full md:w-auto flex-grow bg-white/10 border border-white/20 text-gray-200 font-semibold py-3 px-5 rounded-md transition-all duration-200 ease-in-out hover:bg-white/20 hover:border-white/30 active:scale-95 text-base disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+                {t('erasePanel.clearButton')}
+            </button>
+            
+            <button
+                onClick={() => onApplyEdit(prompt)}
+                disabled={isLoading || isMaskEmpty}
+                className="w-full md:w-auto flex-grow-[2] flex items-center justify-center gap-2 bg-gradient-to-br from-blue-600 to-blue-500 text-white font-bold py-3 px-5 rounded-lg transition-all duration-300 ease-in-out shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/40 hover:-translate-y-px active:scale-95 active:shadow-inner text-base disabled:from-blue-800 disabled:to-blue-700 disabled:shadow-none disabled:cursor-not-allowed disabled:transform-none"
+            >
+                <EraserIcon className="w-5 h-5" />
+                {t('erasePanel.eraseButton')}
+            </button>
+        </div>
       </div>
     </div>
   );

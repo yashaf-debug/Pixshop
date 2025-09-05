@@ -1,5 +1,3 @@
-
-
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -157,7 +155,7 @@ const EditorContent: React.FC<EditorContentProps> = ({ initialImage, onUploadNew
     clearMask();
   }, [history, historyIndex, resetZoomAndPan, clearMask]);
   
-  const handleErase = useCallback(async () => {
+  const handleMagicEdit = useCallback(async (prompt: string) => {
     if (!currentImage || !maskCanvasRef.current || isMaskEmpty) {
       setError(t('app.errorNoMask'));
       return;
@@ -172,30 +170,68 @@ const EditorContent: React.FC<EditorContentProps> = ({ initialImage, onUploadNew
       const originalImg = imgRef.current;
   
       if (!originalImg) throw new Error("Original image element not found.");
+
+      const { naturalWidth, naturalHeight, clientWidth, clientHeight } = originalImg;
+
+      // Calculate the aspect ratio of the natural image and the container element.
+      const naturalRatio = naturalWidth / naturalHeight;
+      const clientRatio = clientWidth / clientHeight;
   
+      let drawnWidth, drawnHeight, offsetX, offsetY;
+  
+      // Determine the actual rendered size and position of the image within its element due to 'object-contain'.
+      // This handles letterboxing (top/bottom bars) and pillarboxing (left/right bars).
+      if (naturalRatio > clientRatio) {
+        // Image is wider than the container, so it's letterboxed.
+        drawnWidth = clientWidth;
+        drawnHeight = clientWidth / naturalRatio;
+        offsetX = 0;
+        offsetY = (clientHeight - drawnHeight) / 2;
+      } else {
+        // Image is taller than or equal to the container aspect ratio, so it's pillarboxed.
+        drawnHeight = clientHeight;
+        drawnWidth = clientHeight * naturalRatio;
+        offsetY = 0;
+        offsetX = (clientWidth - drawnWidth) / 2;
+      }
+  
+      // Create a new canvas with the image's true, original dimensions.
       const binaryMaskCanvas = document.createElement('canvas');
-      binaryMaskCanvas.width = originalImg.naturalWidth;
-      binaryMaskCanvas.height = originalImg.naturalHeight;
+      binaryMaskCanvas.width = naturalWidth;
+      binaryMaskCanvas.height = naturalHeight;
       const ctx = binaryMaskCanvas.getContext('2d');
       if (!ctx) throw new Error("Could not create canvas context for mask.");
   
-      ctx.drawImage(maskCanvas, 0, 0, originalImg.naturalWidth, originalImg.naturalHeight);
+      // Draw the relevant part of the on-screen mask canvas to the full-resolution mask canvas,
+      // scaling it correctly to match the original image.
+      ctx.drawImage(
+        maskCanvas,
+        offsetX,      // source x
+        offsetY,      // source y
+        drawnWidth,   // source width
+        drawnHeight,  // source height
+        0,            // destination x
+        0,            // destination y
+        naturalWidth, // destination width
+        naturalHeight // destination height
+      );
   
       const imageData = ctx.getImageData(0, 0, binaryMaskCanvas.width, binaryMaskCanvas.height);
       const data = imageData.data;
+      // Convert the mask to a binary (black and white) image for the API.
       for (let i = 0; i < data.length; i += 4) {
-        if (data[i + 3] > 0) {
-          data[i] = 255; data[i + 1] = 255; data[i + 2] = 255; data[i + 3] = 255;
+        if (data[i + 3] > 0) { // If pixel is not transparent
+          data[i] = 255; data[i + 1] = 255; data[i + 2] = 255; data[i + 3] = 255; // White
         } else {
-          data[i] = 0; data[i + 1] = 0; data[i + 2] = 0; data[i + 3] = 255;
+          data[i] = 0; data[i + 1] = 0; data[i + 2] = 0; data[i + 3] = 255; // Black
         }
       }
       ctx.putImageData(imageData, 0, 0);
   
       const maskFile = dataURLtoFile(binaryMaskCanvas.toDataURL('image/png'), 'mask.png');
       
-      const erasedImageUrl = await generateErasedImage(currentImage, maskFile);
-      const newImageFile = dataURLtoFile(erasedImageUrl, `erased-${Date.now()}.png`);
+      const erasedImageUrl = await generateErasedImage(currentImage, maskFile, prompt);
+      const newImageFile = dataURLtoFile(erasedImageUrl, `edited-${Date.now()}.png`);
       addImageToHistory(newImageFile);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
@@ -584,7 +620,7 @@ const EditorContent: React.FC<EditorContentProps> = ({ initialImage, onUploadNew
 
           <div className="w-full">
               {activeTab === 'enhance' && <EnhancePanel onEnhance={handleApplyEnhancement} isLoading={isLoading} />}
-              {activeTab === 'erase' && <ErasePanel onErase={handleErase} onClearMask={clearMask} brushSize={brushSize} onBrushSizeChange={setBrushSize} isLoading={isLoading} isMaskEmpty={isMaskEmpty} />}
+              {activeTab === 'erase' && <ErasePanel onApplyEdit={handleMagicEdit} onClearMask={clearMask} brushSize={brushSize} onBrushSizeChange={setBrushSize} isLoading={isLoading} isMaskEmpty={isMaskEmpty} />}
               {activeTab === 'filters' && <FilterPanel onApplyFilter={handleApplyFilter} isLoading={isLoading} />}
               {activeTab === 'adjust' && <AdjustmentPanel onApplyAdjustment={handleApplyAdjustment} isLoading={isLoading} />}
               {activeTab === 'crop' && <CropPanel onApplyCrop={handleApplyCrop} onSetAspect={setAspect} isLoading={isLoading} isCropping={!!completedCrop} />}
